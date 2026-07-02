@@ -1,6 +1,10 @@
 import unittest
 
 from mft.builders import render_post, build_post, build_x_thread
+from mft.textmetrics import x_len
+
+X_HARD_LIMIT = 280
+THREAD_DIVIDER = "\n" + "· " * 22 + "\n"
 
 
 def cfg(**over):
@@ -59,6 +63,48 @@ class TestXThread(unittest.TestCase):
                 "media": "", "hashtags": ""}
         out = render_post(post, cfg())
         self.assertIn("(1/", out)
+
+
+class TestXThreadLimits(unittest.TestCase):
+    """Regressions: every tweet must fit X's *weighted* 280 limit."""
+
+    @staticmethod
+    def _tweets(out):
+        return out.split(THREAD_DIVIDER)
+
+    def _assert_all_fit(self, out):
+        for tweet in self._tweets(out):
+            self.assertLessEqual(x_len(tweet), X_HARD_LIMIT, repr(tweet[:60]))
+
+    def test_long_single_line_is_word_wrapped(self):
+        # One 600-char paragraph used to become a single over-limit tweet.
+        post = {"title": "", "platform": "x",
+                "body_lines": ["word " * 120], "media": "", "hashtags": ""}
+        out = build_x_thread(post, cfg())
+        self.assertGreater(len(self._tweets(out)), 1)
+        self._assert_all_fit(out)
+
+    def test_styled_text_packs_by_weighted_length(self):
+        # Bold math chars count 2 on X; len()-based packing overflowed.
+        post = {"title": "", "platform": "x",
+                "body_lines": ["alpha " * 40], "media": "", "hashtags": ""}
+        out = build_x_thread(post, cfg(body_style="Bold"))
+        self.assertGreater(len(self._tweets(out)), 1)
+        self._assert_all_fit(out)
+
+    def test_title_and_media_tweets_are_wrapped(self):
+        post = {"title": "t " * 200, "platform": "x",
+                "body_lines": ["hi"], "media": "m " * 200,
+                "hashtags": "#tag " * 80}
+        out = build_x_thread(post, cfg())
+        self._assert_all_fit(out)
+
+    def test_unbreakable_word_is_hard_split(self):
+        post = {"title": "", "platform": "x",
+                "body_lines": ["x" * 700], "media": "", "hashtags": ""}
+        out = build_x_thread(post, cfg())
+        self.assertGreaterEqual(len(self._tweets(out)), 3)
+        self._assert_all_fit(out)
 
 
 if __name__ == "__main__":

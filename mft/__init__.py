@@ -13,4 +13,5 @@ __all__ = [
     "builders",
     "exporter",
     "docx_io",
+    "textmetrics",
 ]

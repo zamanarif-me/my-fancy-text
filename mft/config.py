@@ -36,7 +36,9 @@ PLATFORM_LIMIT = {
     "Twitter":   280,
 }
 
-X_LIMIT = 270  # per-tweet budget, leaving room for the (n/N) prefix
+# Per-tweet budget in X's *weighted* units (see mft.textmetrics.x_len).
+# 270 leaves >= 10 units of headroom for the "(n/N)\n" prefix (ASCII, weight 1).
+X_LIMIT = 270
 
 
 # ── Emoji + hashtag library (curated, copy or insert into content) ────

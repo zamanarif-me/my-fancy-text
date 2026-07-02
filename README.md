@@ -8,11 +8,12 @@ styled characters survive copy-paste on every platform.
 - **Bangla** → decorative frames (Unicode has no bold/italic Bangla)
 - Input: **paste text** or **upload `.docx` / `.md` / `.txt`**
 - Output: per-platform **`.docx`**, bundled as a **ZIP**
-- X/Twitter auto-threading (`n/N`)
+- X/Twitter auto-threading (`n/N`) with **X-accurate weighted counting**
+  (styled Unicode chars count 2, URLs count 23) and word-wrapping of long lines
 - Built-in **Emoji & Hashtag library** (curated, one-click copy or add to content)
 - **Save your own hashtag sets** — persisted to `custom_hashtags.json`, reusable across sessions
 - **Validated uploads** — extension allow-list, 5 MB size limit, empty-file & real-`.docx` checks
-- **Modular core + tests** — logic split into the `mft/` package with a 37-test suite
+- **Modular core + tests** — logic split into the `mft/` package with a 53-test suite
 
 ## Setup (local)
 
@@ -49,6 +50,7 @@ MyFancyText/
 │   ├── builders.py     # Standard post + X/Twitter thread builders
 │   ├── exporter.py     # DOCX writer + ZIP bundling
 │   ├── hashtags.py     # Custom hashtag sets (load/save/normalize)
+│   ├── textmetrics.py  # X/Twitter weighted length counting (x_len)
 │   ├── config.py       # CTAs, limits, emoji/hashtag library, sample
 │   └── docx_io.py      # Optional python-docx import (shared)
 ├── tests/              # unittest suite (also runs under pytest)
@@ -63,8 +65,10 @@ pip install -r requirements-dev.txt
 pytest -q            # or: python -m unittest discover -s tests
 ```
 
-37 tests cover the style engine, Bangla decoration, parser, upload validation,
-post/thread builders, hashtag persistence, and DOCX/ZIP export.
+53 tests cover the style engine, Bangla decoration, parser, upload validation,
+post/thread builders, X weighted-length counting, hashtag persistence, and
+DOCX/ZIP export — including regression tests for malformed input (missing
+`Title:`, CRLF files, over-long lines, platform words inside a body).
 
 ## Input format
 

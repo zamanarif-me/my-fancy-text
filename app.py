@@ -226,7 +226,7 @@ with tab_upload:
 
 # Upload takes precedence; otherwise use the pasted text.
 if input_lines is None and st.session_state.content.strip():
-    input_lines = st.session_state.content.split("\n")
+    input_lines = st.session_state.content.splitlines()
 
 # ── Parse & render ───────────────────────────────────────────────────
 if not input_lines:

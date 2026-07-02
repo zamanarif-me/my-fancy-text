@@ -60,6 +60,31 @@ class TestParseText(unittest.TestCase):
     def test_empty_input(self):
         self.assertEqual(parse_text([]), [])
 
+    def test_block_without_title_is_kept(self):
+        # Regression: blocks missing "Title:" used to be silently dropped.
+        posts = parse_text(["Facebook", "Body:", "hello world"])
+        self.assertEqual(len(posts), 1)
+        self.assertEqual(posts[0]["title"], "")
+        self.assertEqual(posts[0]["platform"], "Facebook")
+        self.assertEqual(posts[0]["body_lines"], ["hello world"])
+
+    def test_platform_word_inside_body_stays_in_body(self):
+        # Regression: a lone "x" in the body used to start a phantom
+        # X section and drop the lines after it.
+        posts = parse_text(
+            ["Title: t", "Facebook", "Body:", "option a", "x", "option b"])
+        self.assertEqual(len(posts), 1)
+        self.assertEqual(posts[0]["body_lines"], ["option a", "x", "option b"])
+
+    def test_platform_after_body_still_starts_new_section(self):
+        posts = parse_text(
+            ["Title: t", "Facebook", "Body:", "fb body",
+             "LinkedIn", "Body:", "li body"])
+        self.assertEqual([p["platform"] for p in posts],
+                         ["Facebook", "LinkedIn"])
+        self.assertEqual(posts[0]["body_lines"], ["fb body"])
+        self.assertEqual(posts[1]["body_lines"], ["li body"])
+
 
 class TestLinesFromUpload(unittest.TestCase):
     def test_rejects_bad_extension(self):
@@ -82,6 +107,16 @@ class TestLinesFromUpload(unittest.TestCase):
     def test_reads_md_with_unicode(self):
         lines = lines_from_upload(FakeUpload("a.md", "Title: ধৈর্য".encode("utf-8")))
         self.assertEqual(lines, ["Title: ধৈর্য"])
+
+    def test_crlf_upload_leaves_no_carriage_returns(self):
+        # Regression: Windows CRLF files used to leak \r into body lines.
+        up = FakeUpload(
+            "a.txt",
+            b"Title: hi\r\nFacebook\r\nBody:\r\nline one\r\nline two\r\n")
+        lines = lines_from_upload(up)
+        self.assertTrue(all("\r" not in ln for ln in lines))
+        posts = parse_text(lines)
+        self.assertEqual(posts[0]["body_lines"], ["line one", "line two"])
 
 
 if __name__ == "__main__":

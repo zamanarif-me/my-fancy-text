@@ -2,6 +2,7 @@
 
 from .styles import STYLES, decorate
 from .config import X_LIMIT
+from .textmetrics import x_len
 
 
 def build_post(post: dict, cfg: dict) -> str:
@@ -45,8 +46,48 @@ def build_post(post: dict, cfg: dict) -> str:
     return "\n".join(out)
 
 
+def _hard_split(word: str, limit: int) -> list:
+    """Split one unbreakable word into chunks whose weighted length fits."""
+    parts, cur, w = [], "", 0
+    for ch in word:
+        cw = x_len(ch)
+        if cur and w + cw > limit:
+            parts.append(cur)
+            cur, w = "", 0
+        cur += ch
+        w += cw
+    if cur:
+        parts.append(cur)
+    return parts
+
+
+def _wrap_to_limit(text: str, limit: int) -> list:
+    """Word-wrap ``text`` into pieces whose x_len fits ``limit``."""
+    if x_len(text) <= limit:
+        return [text]
+    pieces, current = [], ""
+    for word in text.split(" "):
+        chunks = [word] if x_len(word) <= limit else _hard_split(word, limit)
+        for chunk in chunks:
+            candidate = (current + " " + chunk) if current else chunk
+            if x_len(candidate) <= limit:
+                current = candidate
+            else:
+                if current:
+                    pieces.append(current)
+                current = chunk
+    if current:
+        pieces.append(current)
+    return pieces or [""]
+
+
 def build_x_thread(post: dict, cfg: dict) -> str:
-    """Split a post into numbered tweets (n/N), each under the X limit."""
+    """Split a post into numbered tweets (n/N), each under the X limit.
+
+    Lengths use ``x_len`` (X's weighted counting: styled math chars and
+    emoji = 2, URLs = 23), and every part — title, body, media/hashtags —
+    is wrapped, so no tweet can exceed the real limit.
+    """
     t_style = STYLES[cfg["title_style"]]
     b_style = STYLES[cfg["body_style"]]
     m_style = STYLES[cfg["media_style"]]
@@ -54,18 +95,19 @@ def build_x_thread(post: dict, cfg: dict) -> str:
     tweets = []
 
     if post["title"]:
-        tweets.append(decorate(t_style(post["title"]), decor))
+        tweets.extend(_wrap_to_limit(decorate(t_style(post["title"]), decor), X_LIMIT))
 
     current = ""
     for line in post["body_lines"]:
         formatted = decorate(b_style(line), decor) if line.strip() else ""
-        candidate = (current + "\n" + formatted).strip()
-        if len(candidate) <= X_LIMIT:
-            current = candidate
-        else:
-            if current:
-                tweets.append(current)
-            current = formatted
+        for piece in _wrap_to_limit(formatted, X_LIMIT):
+            candidate = (current + "\n" + piece).strip()
+            if x_len(candidate) <= X_LIMIT:
+                current = candidate
+            else:
+                if current:
+                    tweets.append(current)
+                current = piece
     if current:
         tweets.append(current)
 
@@ -76,7 +118,7 @@ def build_x_thread(post: dict, cfg: dict) -> str:
             last += decorate(m_style(media_text), decor)
         if hashtags:
             last += ("\n" if last else "") + m_style(hashtags)
-        tweets.append(last.strip())
+        tweets.extend(_wrap_to_limit(last.strip(), X_LIMIT))
 
     if not tweets:
         return ""

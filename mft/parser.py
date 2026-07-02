@@ -30,16 +30,16 @@ def parse_text(lines: list) -> list:
     all_posts = []
 
     for block in blocks:
+        # Find the title without consuming the block: a block that has no
+        # "Title:" line is still parsed in full (title stays empty).
         title = ""
         i = 0
-
-        while i < len(block):
-            stripped = block[i].strip()
+        for j, ln in enumerate(block):
+            stripped = ln.strip()
             if stripped.lower().startswith("title:"):
                 title = stripped[6:].strip()
-                i += 1
+                i = j + 1
                 break
-            i += 1
 
         state = {"platform": "", "body": [], "media": "", "hashtags": "", "mode": None}
 
@@ -56,11 +56,22 @@ def parse_text(lines: list) -> list:
                     "hashtags":   state["hashtags"],
                 })
 
+        def _is_platform_header(pos):
+            """A platform word mid-body is content, not a header, unless the
+            next non-blank line starts a new section (Body:/Media:)."""
+            if state["mode"] != "body":
+                return True
+            for nxt in block[pos + 1:]:
+                s = nxt.strip().lower()
+                if s:
+                    return s.startswith(("body:", "media:"))
+            return False
+
         while i < len(block):
             raw = block[i]
             line = raw.strip()
 
-            if line.lower() in KNOWN_PLATFORMS:
+            if line.lower() in KNOWN_PLATFORMS and _is_platform_header(i):
                 save_section()
                 state.update(platform=line, body=[], media="", hashtags="", mode="platform")
             elif line.lower().startswith("body:"):
@@ -113,5 +124,6 @@ def lines_from_upload(uploaded) -> list:
         doc = Document(io.BytesIO(data))
         return [p.text for p in doc.paragraphs]
 
-    # .md / .txt — decode as UTF-8 text
-    return data.decode("utf-8", errors="replace").split("\n")
+    # .md / .txt — decode as UTF-8 text; splitlines() handles \r\n and \r
+    # so Windows-saved files don't leak carriage returns into the output.
+    return data.decode("utf-8", errors="replace").splitlines()
